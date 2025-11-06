@@ -1,44 +1,53 @@
-var builder = WebApplication.CreateBuilder(args);
+using EstoqueService.Contracts;
+using EstoqueService.Mappings;
+using EstoqueService.Models;
+using EstoqueService.Repositories;
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+var construtor = WebApplication.CreateBuilder(args);
 
-var app = builder.Build();
+construtor.Services.AddEndpointsApiExplorer();
+construtor.Services.AddSwaggerGen();
+construtor.Services.AddSingleton<IRepositorioProduto, RepositorioProdutoMemoria>();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+var aplicativo = construtor.Build();
+
+if (aplicativo.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    aplicativo.UseSwagger();
+    aplicativo.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+aplicativo.UseHttpsRedirection();
 
-var summaries = new[]
+aplicativo.MapPost("/produtos", async Task<IResult> (
+    CriarProdutoRequisicao requisicao,
+    IRepositorioProduto repositorio,
+    CancellationToken cancelamento) =>
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+    if (!CriarProdutoRequisicao.EhValido(requisicao, out var erroValidacao))
+    {
+        return Results.BadRequest(new { erro = erroValidacao });
+    }
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
+    var produto = Produto.Criar(requisicao.Codigo!, requisicao.Descricao!, requisicao.Saldo!.Value);
+
+    if (!await repositorio.TentarAdicionarAsync(produto, cancelamento).ConfigureAwait(false))
+    {
+        return Results.Conflict(new { erro = "Código do produto já existe." });
+    }
+
+    var resposta = produto.ParaResposta();
+    return Results.Created($"/produtos/{resposta.Id}", resposta);
 })
-.WithName("GetWeatherForecast")
+.WithName("CriarProduto")
 .WithOpenApi();
 
-app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+aplicativo.MapGet("/produtos", async Task<IResult> (IRepositorioProduto repositorio, CancellationToken cancelamento) =>
 {
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
+    var produtos = await repositorio.ObterTodosAsync(cancelamento).ConfigureAwait(false);
+    return Results.Ok(produtos.Select(produto => produto.ParaResposta()));
+})
+.WithName("ListarProdutos")
+.WithOpenApi();
+
+aplicativo.Run();

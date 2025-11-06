@@ -1,0 +1,59 @@
+
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: korpdb
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend-faturamento:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        PROJECT: FaturamentoService
+    environment:
+      # Ajuste a string de conexão conforme sua appsettings
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=korpdb;Username=postgres;Password=postgres"
+    depends_on:
+      - db
+    ports:
+      - "5001:80"
+
+  backend-estoque:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        PROJECT: EstoqueService
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=korpdb;Username=postgres;Password=postgres"
+    depends_on:
+      - db
+    ports:
+      - "5002:80"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    depends_on:
+      - backend-faturamento
+      - backend-estoque
+    ports:
+      - "80:80"
+
+volumes:
+  db_data:
+    driver: local
+
+networks: {}
+

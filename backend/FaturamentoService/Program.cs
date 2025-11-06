@@ -1,44 +1,90 @@
-var builder = WebApplication.CreateBuilder(args);
+using System.Linq;
+using global::FaturamentoService.Contracts;
+using global::FaturamentoService.Mappings;
+using global::FaturamentoService.Models;
+using global::FaturamentoService.Repositories;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+namespace FaturamentoService;
 
-var app = builder.Build();
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+public static class Program
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    public static void Main(string[] args)
+    {
+        var construtor = WebApplication.CreateBuilder(args);
 
-app.UseHttpsRedirection();
+        construtor.Services.AddEndpointsApiExplorer();
+        construtor.Services.AddSwaggerGen();
+        construtor.Services.AddSingleton<IRepositorioNotaFiscal, RepositorioNotaFiscalMemoria>();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+        var aplicativo = construtor.Build();
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
+        if (aplicativo.Environment.IsDevelopment())
+        {
+            aplicativo.UseSwagger();
+            aplicativo.UseSwaggerUI();
+        }
 
-app.Run();
+        aplicativo.UseHttpsRedirection();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+        aplicativo.MapPost("/notas-fiscais", async Task<IResult> (
+            CriarNotaFiscalRequisicao requisicao,
+            IRepositorioNotaFiscal repositorio,
+            CancellationToken cancelamento) =>
+        {
+            if (!CriarNotaFiscalRequisicao.EhValida(requisicao, out var erroValidacao))
+            {
+                return Results.BadRequest(new { erro = erroValidacao });
+            }
+
+            var itens = requisicao.Itens!
+                .Select(item => ItemNotaFiscal.Criar(item.CodigoProduto!, item.Quantidade!.Value))
+                .ToArray();
+
+            var notaFiscal = await repositorio.CriarAsync(itens, cancelamento).ConfigureAwait(false);
+            return Results.Created($"/notas-fiscais/{notaFiscal.Id}", notaFiscal.ParaResposta());
+        })
+        .WithName("CriarNotaFiscal")
+        .WithOpenApi();
+
+        aplicativo.MapGet("/notas-fiscais", async Task<IResult> (IRepositorioNotaFiscal repositorio, CancellationToken cancelamento) =>
+        {
+            var notas = await repositorio.ObterTodasAsync(cancelamento).ConfigureAwait(false);
+            return Results.Ok(notas.Select(nota => nota.ParaResposta()));
+        })
+        .WithName("ListarNotasFiscais")
+        .WithOpenApi();
+
+        aplicativo.MapPost("/notas-fiscais/{notaFiscalId:guid}/fechamento", async Task<IResult> (
+            Guid notaFiscalId,
+            IRepositorioNotaFiscal repositorio,
+            CancellationToken cancelamento) =>
+        {
+            var notaExistente = await repositorio.ObterPorIdAsync(notaFiscalId, cancelamento).ConfigureAwait(false);
+            if (notaExistente is null)
+            {
+                return Results.NotFound(new { erro = "Nota fiscal não encontrada." });
+            }
+
+            if (notaExistente.Status == StatusNotaFiscal.Fechada)
+            {
+                return Results.Conflict(new { erro = "Nota fiscal já está fechada." });
+            }
+
+            var notaFechada = await repositorio.FecharAsync(notaFiscalId, cancelamento).ConfigureAwait(false);
+            if (notaFechada is null)
+            {
+                return Results.BadRequest(new { erro = "Não foi possível fechar a nota fiscal." });
+            }
+
+            return Results.Ok(notaFechada.ParaResposta());
+        })
+        .WithName("FecharNotaFiscal")
+        .WithOpenApi();
+
+        aplicativo.Run();
+    }
 }

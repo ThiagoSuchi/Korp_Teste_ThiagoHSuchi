@@ -1,0 +1,9 @@
+global using System.Linq;
+global using Microsoft.AspNetCore.Builder;
+global using Microsoft.AspNetCore.Http;
+global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.Extensions.Hosting;
+global using FaturamentoService.Contracts;
+global using FaturamentoService.Mappings;
+global using FaturamentoService.Models;
+global using FaturamentoService.Repositories;

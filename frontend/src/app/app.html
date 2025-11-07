@@ -1,1 +1,34 @@
-<h1>Temos 7 dias pra isso funcionar</h1>
+<div class="flex min-h-screen flex-col bg-linear-to-br from-slate-50 via-slate-100 to-slate-200 font-sans text-slate-900">
+		<header class="border-b border-[#111827] bg-linear-to-r from-[#000000] via-[#131d2f] to-[#26375c] text-slate-100 shadow-lg shadow-black/35 backdrop-blur">
+			<div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-4">
+				<img src="/logo-korp.png" alt="Korp ERP" class="h-14 w-auto" />
+				<nav class="flex flex-wrap items-center gap-10 text-sm">
+				<a
+					routerLink="/produtos"
+					[routerLinkActiveOptions]="{ exact: true }"
+					routerLinkActive="router-link-active"
+					class="relative inline-flex items-center px-0 py-1 font-medium text-slate-100 transition-colors duration-200 hover:text-[#d50460] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d50460] after:absolute after:-bottom-[2px] after:left-0 after:h-0.5 after:w-full after:origin-right after:scale-x-0 after:bg-[#d50460] after:content-[''] after:transition-transform after:duration-300 after:ease-out hover:after:origin-left hover:after:scale-x-100 [&.router-link-active]:text-[#d50460] [&.router-link-active]:after:origin-left [&.router-link-active]:after:scale-x-100"
+				>
+					<span>Produtos</span>
+				</a>
+				<a
+					routerLink="/notas-fiscais"
+					routerLinkActive="router-link-active"
+					class="relative inline-flex items-center px-0 py-1 font-medium text-slate-100 transition-colors duration-500 hover:text-[#d50460] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d50460] after:absolute after:-bottom-[2px] after:left-0 after:h-0.5 after:w-full after:origin-right after:scale-x-0 after:bg-[#d50460] after:content-[''] after:transition-transform after:duration-300 after:ease-out hover:after:origin-left hover:after:scale-x-100 [&.router-link-active]:text-[#d50460] [&.router-link-active]:after:origin-left [&.router-link-active]:after:scale-x-100"
+				>
+					<span>Notas fiscais</span>
+				</a>
+			</nav>
+		</div>
+	</header>
+
+		<main class="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
+		<router-outlet></router-outlet>
+	</main>
+
+		<footer class="border-t border-slate-200 bg-white/80 py-4 text-center text-sm md:text-base font-medium text-slate-500 backdrop-blur">
+			Projeto técnico desenvolvido por Thiago Hens Suchi &middot; Sistema de emissão de notas fiscais
+	</footer>
+</div>
+
+<z-toaster class="z-50" />

@@ -1,27 +1,30 @@
-# Dockerfile multi-stage para projetos .NET no diretório `backend`.
-# Usa o ARG PROJECT para construir qualquer projeto dentro de /backend (p.ex. FaturamentoService ou EstoqueService).
-
 ARG PROJECT=FaturamentoService
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS restore
+ARG PROJECT=FaturamentoService
 WORKDIR /src
 
-# Copia tudo para permitir `dotnet restore` em solução/nugets
+# Copia apenas arquivos necessários para restaurar dependências (melhor cache)
+COPY FaturamentoService/*.csproj FaturamentoService/
+COPY EstoqueService/*.csproj EstoqueService/
+
+RUN dotnet restore "./${PROJECT}/${PROJECT}.csproj"
+
+FROM restore AS build
+ARG PROJECT=FaturamentoService
+WORKDIR /src
 COPY . ./
-
-WORKDIR /src/$PROJECT
-
-# Restaura e publica o projeto (não assume dependências externas)
-RUN dotnet restore
-RUN dotnet publish -c Release -o /app --no-restore
+RUN dotnet publish "./${PROJECT}/${PROJECT}.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
-ARG PROJECT
-ENV PROJECT=${PROJECT}
+ARG PROJECT=FaturamentoService
+ENV ASPNETCORE_ENVIRONMENT=Production \
+	ASPNETCORE_URLS=http://+:8080 \
+	PROJECT=${PROJECT}
 WORKDIR /app
-COPY --from=build /app .
+COPY --from=build /app/publish ./
 
-ENV ASPNETCORE_URLS=http://+:80
-EXPOSE 80
+EXPOSE 8080
 
-# Usa a forma shell para expandir a variável PROJECT na hora do start
-ENTRYPOINT dotnet /app/$PROJECT.dll
+# Usa shell para interpretar a variável PROJECT na hora do start
+ENTRYPOINT ["/bin/sh", "-c", "dotnet /app/${PROJECT}.dll"]

@@ -21,4 +21,23 @@ public sealed class Produto
 	{
 		return new Produto(Guid.NewGuid(), codigo.Trim(), descricao.Trim(), saldo, DateTime.UtcNow);
 	}
+
+	public bool TentarDebitar(int quantidade, out string? erro)
+	{
+		if (quantidade <= 0)
+		{
+			erro = "Quantidade deve ser maior que zero.";
+			return false;
+		}
+
+		if (Saldo < quantidade)
+		{
+			erro = "Saldo insuficiente para o produto.";
+			return false;
+		}
+
+		Saldo -= quantidade;
+		erro = null;
+		return true;
+	}
 }

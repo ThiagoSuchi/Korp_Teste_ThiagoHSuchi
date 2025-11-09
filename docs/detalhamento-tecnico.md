@@ -61,9 +61,46 @@ O projeto implementa uma solução full-stack para cadastro de produtos, emissã
   - `POST /notas-fiscais/{id}/impressao`: consome estoque (chama `/produtos/consumo`), fecha nota e retorna payload informativo.
 - Contratos em `Contracts/InvoiceContracts.cs` definem validações (item obrigatório, quantidade positiva).
 
+### Idempotência
+
+A aplicação implementa idempotência em todos os endpoints `POST` críticos para garantir que operações sensíveis não sejam duplicadas em cenários de retry, double-click ou falhas de rede.
+
+#### Implementação
+
+- **Cabeçalho `Idempotency-Key`**: O frontend gera automaticamente um UUID único (`crypto.randomUUID()`) e o envia em cada requisição POST através do cabeçalho HTTP `Idempotency-Key`.
+- **Cache de respostas**: O backend utiliza `IMemoryCache` (Microsoft.Extensions.Caching.Memory) para armazenar a resposta original de cada operação por 10 minutos.
+- **Chave de cache composta**: A chave é formada pela combinação de `{método HTTP}:{path da requisição}:{Idempotency-Key}`, garantindo isolamento entre diferentes endpoints.
+- **Controle de concorrência**: `SemaphoreSlim` protege contra race conditions, garantindo que apenas uma thread execute a operação por vez para a mesma chave.
+- **Serialização de resposta**: O `IdempotencyRecord` captura status HTTP, payload e content-type da resposta original, reconstruindo-a fielmente em requisições subsequentes.
+
+#### Fluxo de Execução
+
+1. Cliente envia requisição POST com `Idempotency-Key`
+2. Backend verifica cache; se encontrado, retorna resposta cacheada imediatamente
+3. Se não encontrado, adquire lock via `SemaphoreSlim`
+4. Verifica cache novamente (double-check após lock)
+5. Executa operação de negócio
+6. Serializa resultado no cache com TTL de 10 minutos
+7. Libera lock e retorna resposta
+
+#### Endpoints Protegidos
+
+- `POST /produtos`: Criação de produtos
+- `POST /produtos/consumo`: Débito de estoque
+- `POST /notas-fiscais`: Criação de notas fiscais
+- `POST /notas-fiscais/{id}/fechamento`: Fechamento de notas
+- `POST /notas-fiscais/{id}/impressao`: Impressão e consumo de estoque
+
+#### Benefícios
+
+- Previne cadastros duplicados de produtos
+- Evita débitos múltiplos do mesmo estoque
+- Protege contra fechamento/impressão duplicada de notas
+- Melhora a resiliência em ambientes com instabilidade de rede
+- Reduz a complexidade no frontend (não precisa gerenciar flags de "já enviado")
+
 ### Políticas Técnicas
 
-- **Idempotency-Key**: obrigatória para todos os `POST` sensíveis. Respostas são cacheadas por 10 minutos.
 - **Tratamento de erros**: erros de negócio retornam JSON `{ erro: "..." }`, aproveitado pelo frontend.
 - **Persistência**: in-memory (sem banco externo), alinhado às restrições do desafio.
 - **Logs/Observabilidade**: minimal (default ASP.NET). Pode ser expandido com Serilog ou Application Insights se necessário.
